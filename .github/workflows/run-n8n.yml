@@ -3,26 +3,32 @@ name: Run n8n Workflow Daily
 on:
   schedule:
     - cron: "0 0 * * *"  # every 24 hours at midnight UTC
-  workflow_dispatch:
+  workflow_dispatch:      # allows manual trigger
 
 jobs:
   run-n8n:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/n8n-automation:latest .
-
-      - name: Push Docker image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/n8n-automation:latest
-
-      - name: Run n8n container
+      - name: Build and run n8n container
         run: |
-          docker run -d -p 5678:5678 ${{ secrets.DOCKER_USERNAME }}/n8n-automation:latest
+          docker build -t n8n-automation:latest .
+          docker run -d --name n8n-temp -p 5678:5678 n8n-automation:latest
           sleep 15
+          # Trigger the workflow inside the container via localhost
           curl -X POST http://localhost:5678/webhook-test/3ef44219-9062-4daa-a72b-c3ecae82d52e
+          # Stop and remove the container after running
+          docker stop n8n-temp
+          docker rm n8n-temp
