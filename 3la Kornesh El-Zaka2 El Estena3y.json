@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "url": "https://linkedin-job-search-api.p.rapidapi.com/active-jb-7d?offset=0&title_filter=Ai%20Engineer&location_filter=Egypt&description_type=text",
+        "url": "https://linkedin-job-search-api.p.rapidapi.com/active-jb-24h?limit=20&offset=0&title_filter=AI%20Engineer,Machine%20Learning%20Engineer,Data%20Scientist&location_filter=Egypt&description_type=text",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -22,20 +22,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        208,
+        160,
         0
       ],
       "id": "92e957e8-d35c-43e9-beac-c51011416f50",
-      "name": "HTTP Request"
+      "name": "HTTP Request",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
-        "jsCode": "// ✅ Get all items from previous node (HTTP Request)\nconst items = $input.all();\nconst jobs = items.map(item => item.json);\n\n// --- Format each job as a structured JSON object ---\nconst formattedJobs = jobs.map(job => {\n  const title = job.title || \"N/A\";\n  const company = job.organization || \"N/A\";\n  const location = job.locations_derived?.[0] || \"N/A\";\n  const posted = job.date_posted\n    ? new Date(job.date_posted).toLocaleDateString(\"en-GB\", { day: '2-digit', month: 'short', year: 'numeric' })\n    : \"N/A\";\n  const applyBefore = job.date_validthrough\n    ? new Date(job.date_validthrough).toLocaleDateString(\"en-GB\", { day: '2-digit', month: 'short', year: 'numeric' })\n    : \"N/A\";\n  const level = job.seniority || \"Not specified\";\n  const employmentType = job.employment_type?.[0]?.replace(\"_\", \"-\") || \"Not specified\";\n  const url = job.url || job.external_apply_url || \"N/A\";\n  const desc = job.description_text?.trim() || \"No description available\";\n\n  // 🧠 Try to extract skills from description (optional)\n  const requirementsMatch = desc.match(/Job Requirements:([\\s\\S]*?)(?:You can apply|$)/i);\n  let jobSkills = [];\n  if (requirementsMatch) {\n    jobSkills = requirementsMatch[1]\n      .split(/[\\n•\\-]+/)\n      .map(s => s.trim())\n      .filter(Boolean);\n  }\n\n  return { \n    title,\n    company,\n    location,\n    posted_date: posted,\n    apply_before: applyBefore,\n    employment_type: employmentType,\n    level,\n    required_skills: jobSkills,\n    url,\n    description: desc\n  };\n});\n\nconst result = formattedJobs.map(job => ({ json: job }))\n// --- ✅ Final output (just the jobs as JSON) ---\nreturn {result};\n"
+        "jsCode": "// ✅ Get all items from previous node (HTTP Request)\nconst items = $input.all();\nconst jobs = items.map(item => item.json);\n\nif (jobs)\n  return {\"empty\":true};\n\n// --- Format each job as a structured JSON object ---\nconst formattedJobs = jobs.map(job => {\n  const title = job.title || \"N/A\";\n  const company = job.organization || \"N/A\";\n  const location = job.locations_derived?.[0] || \"N/A\";\n  const posted = job.date_posted\n    ? new Date(job.date_posted).toLocaleDateString(\"en-GB\", { day: '2-digit', month: 'short', year: 'numeric' })\n    : \"N/A\";\n  const applyBefore = job.date_validthrough\n    ? new Date(job.date_validthrough).toLocaleDateString(\"en-GB\", { day: '2-digit', month: 'short', year: 'numeric' })\n    : \"N/A\";\n  const level = job.seniority || \"Not specified\";\n  const employmentType = job.employment_type?.[0]?.replace(\"_\", \"-\") || \"Not specified\";\n  const url = job.url || job.external_apply_url || \"N/A\";\n  const desc = job.description_text?.trim() || \"No description available\";\n\n  // 🧠 Try to extract skills from description (optional)\n  const requirementsMatch = desc.match(/Job Requirements:([\\s\\S]*?)(?:You can apply|$)/i);\n  let jobSkills = [];\n  if (requirementsMatch) {\n    jobSkills = requirementsMatch[1]\n      .split(/[\\n•\\-]+/)\n      .map(s => s.trim())\n      .filter(Boolean);\n  }\n\n  return { \n    title,\n    company,\n    location,\n    posted_date: posted,\n    apply_before: applyBefore,\n    employment_type: employmentType,\n    level,\n    required_skills: jobSkills,\n    url,\n    description: desc\n  };\n});\n\nconst result = formattedJobs.map(job => ({ json: job }))\n// --- ✅ Final output (just the jobs as JSON) ---\nreturn {result};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        416,
+        304,
         0
       ],
       "id": "cb110a26-f6ec-43e3-893b-3c51c1c5f262",
@@ -45,9 +46,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "models/gemini-1.5-flash-latest",
+          "value": "models/gemini-flash-latest",
           "mode": "list",
-          "cachedResultName": "models/gemini-1.5-flash-latest"
+          "cachedResultName": "models/gemini-flash-latest"
         },
         "messages": {
           "values": [
@@ -162,8 +163,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        688,
-        256
+        784,
+        128
       ],
       "id": "25362d60-127d-4d92-ad03-ae12d9b79163",
       "name": "Code in JavaScript2"
@@ -312,7 +313,7 @@
       "typeVersion": 4.7,
       "position": [
         960,
-        176
+        80
       ],
       "id": "2a67e959-88b6-488d-b22a-32726b32e9f8",
       "name": "Append row in sheet1",
@@ -389,8 +390,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
-        368
+        1136,
+        208
       ],
       "id": "941aa071-05f5-4609-85b5-fe3e83ce2485",
       "name": "HTTP Request3"
@@ -402,8 +403,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        864,
-        368
+        960,
+        208
       ],
       "id": "b51a01e7-3405-4059-9fbe-07ea3401d31b",
       "name": "Code in JavaScript4"
@@ -417,12 +418,81 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        16,
-        0
+        -80,
+        -80
       ],
       "id": "612ce9c0-6fc3-4a77-92df-127dec0915ac",
       "name": "Webhook",
       "webhookId": "3ef44219-9062-4daa-a72b-c3ecae82d52e"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        64
+      ],
+      "id": "1c97ffdb-de27-407b-bffc-376ebb0d1783",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7ebaa5d6-9419-439e-853a-23d97c9b42b2",
+              "leftValue": "={{ $json.empty }}",
+              "rightValue": "=",
+              "operator": {
+                "type": "boolean",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        0
+      ],
+      "id": "3c5581d7-42e8-4398-9666-845e179a3454",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8396483290:AAHOOEaCylSj3ajWnNycO7DFaQS0A5JuLpA/sendMessage?chat_id=5048257269",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=No Jobs For Today 🥲"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        784,
+        352
+      ],
+      "id": "9ec4dbe9-0993-4eb3-8fcd-e7ab2fe5061e",
+      "name": "HTTP Request4"
     }
   ],
   "pinData": {},
@@ -442,12 +512,7 @@
       "main": [
         [
           {
-            "node": "Message a model",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Code in JavaScript2",
+            "node": "If",
             "type": "main",
             "index": 0
           }
@@ -529,6 +594,40 @@
         [
           {
             "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request4",
             "type": "main",
             "index": 0
           }
