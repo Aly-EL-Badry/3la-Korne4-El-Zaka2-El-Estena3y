@@ -3,25 +3,6 @@
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "=days"
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        0,
-        0
-      ],
-      "id": "782a1061-7438-4d7b-89e3-106555203bb6",
-      "name": "Schedule Trigger"
-    },
-    {
-      "parameters": {
         "url": "https://linkedin-job-search-api.p.rapidapi.com/active-jb-7d?offset=0&title_filter=Ai%20Engineer&location_filter=Egypt&description_type=text",
         "sendHeaders": true,
         "headerParameters": {
@@ -426,21 +407,26 @@
       ],
       "id": "b51a01e7-3405-4059-9fbe-07ea3401d31b",
       "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "3ef44219-9062-4daa-a72b-c3ecae82d52e",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        0
+      ],
+      "id": "612ce9c0-6fc3-4a77-92df-127dec0915ac",
+      "name": "Webhook",
+      "webhookId": "3ef44219-9062-4daa-a72b-c3ecae82d52e"
     }
   ],
   "pinData": {},
   "connections": {
-    "Schedule Trigger": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "HTTP Request": {
       "main": [
         [
@@ -537,13 +523,24 @@
           }
         ]
       ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "bb32cd98-298f-444c-9416-718fa8bdaad8",
+  "versionId": "398f289d-f85d-4bcf-9059-cfd5476f1411",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "72594a936f2cb6df6886a27ff764895fd8e012efa0a98d5254096a6f04a9b3e9"
