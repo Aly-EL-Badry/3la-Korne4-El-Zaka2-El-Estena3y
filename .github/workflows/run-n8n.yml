@@ -24,11 +24,28 @@ jobs:
 
       - name: Build and run n8n container
         run: |
+          # Build the Docker image
           docker build -t n8n-automation:latest .
+
+          # Run container in detached mode
           docker run -d --name n8n-temp -p 5678:5678 n8n-automation:latest
-          sleep 15
-          # Trigger the workflow inside the container via localhost
+
+          # Wait for container to become healthy (max 60s)
+          echo "Waiting for n8n to become healthy..."
+          timeout=60
+          while [ $timeout -gt 0 ]; do
+            status=$(docker inspect --format='{{.State.Health.Status}}' n8n-temp)
+            if [ "$status" == "healthy" ]; then
+              echo "n8n is healthy!"
+              break
+            fi
+            sleep 2
+            timeout=$((timeout - 2))
+          done
+
+          # Trigger the webhook
           curl -X POST http://localhost:5678/webhook-test/3ef44219-9062-4daa-a72b-c3ecae82d52e
-          # Stop and remove the container after running
+
+          # Stop and remove the container
           docker stop n8n-temp
           docker rm n8n-temp
