@@ -1,0 +1,553 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "=days"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "782a1061-7438-4d7b-89e3-106555203bb6",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://linkedin-job-search-api.p.rapidapi.com/active-jb-7d?offset=0&title_filter=Ai%20Engineer&location_filter=Egypt&description_type=text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-rapidapi-key",
+              "value": "4582d02856msh7af2ff0285425d3p11dde6jsnb3e9f0cc8339"
+            },
+            {
+              "name": "x-rapidapi-host",
+              "value": "linkedin-job-search-api.p.rapidapi.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "92e957e8-d35c-43e9-beac-c51011416f50",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ Get all items from previous node (HTTP Request)\nconst items = $input.all();\nconst jobs = items.map(item => item.json);\n\n// --- Format each job as a structured JSON object ---\nconst formattedJobs = jobs.map(job => {\n  const title = job.title || \"N/A\";\n  const company = job.organization || \"N/A\";\n  const location = job.locations_derived?.[0] || \"N/A\";\n  const posted = job.date_posted\n    ? new Date(job.date_posted).toLocaleDateString(\"en-GB\", { day: '2-digit', month: 'short', year: 'numeric' })\n    : \"N/A\";\n  const applyBefore = job.date_validthrough\n    ? new Date(job.date_validthrough).toLocaleDateString(\"en-GB\", { day: '2-digit', month: 'short', year: 'numeric' })\n    : \"N/A\";\n  const level = job.seniority || \"Not specified\";\n  const employmentType = job.employment_type?.[0]?.replace(\"_\", \"-\") || \"Not specified\";\n  const url = job.url || job.external_apply_url || \"N/A\";\n  const desc = job.description_text?.trim() || \"No description available\";\n\n  // 🧠 Try to extract skills from description (optional)\n  const requirementsMatch = desc.match(/Job Requirements:([\\s\\S]*?)(?:You can apply|$)/i);\n  let jobSkills = [];\n  if (requirementsMatch) {\n    jobSkills = requirementsMatch[1]\n      .split(/[\\n•\\-]+/)\n      .map(s => s.trim())\n      .filter(Boolean);\n  }\n\n  return { \n    title,\n    company,\n    location,\n    posted_date: posted,\n    apply_before: applyBefore,\n    employment_type: employmentType,\n    level,\n    required_skills: jobSkills,\n    url,\n    description: desc\n  };\n});\n\nconst result = formattedJobs.map(job => ({ json: job }))\n// --- ✅ Final output (just the jobs as JSON) ---\nreturn {result};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "cb110a26-f6ec-43e3-893b-3c51c1c5f262",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-1.5-flash-latest",
+          "mode": "list",
+          "cachedResultName": "models/gemini-1.5-flash-latest"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an AI that extracts the most important technical and domain-specific skills from job listings. \nYou are a JSON generator. You must follow the format strictly.\n\nInput: A list of job descriptions in JSON:\n{{ $json.result }}\n\nInstructions:\n1. Extract all technical and domain-specific skills mentioned in the job descriptions.\n2. Remove generic soft skills and very basic skills like \"Python\", \"programming\", \"communication\", \"teamwork\", etc.\n3. Return your output as exactly two separate JSON blocks, enclosed in ```json ... ``` each.\n\nThe first JSON block MUST be a JSON array listing all skills like this:\n[\n  {\"skill\": \"Machine Learning\"},\n  {\"skill\": \"TensorFlow\"},\n  {\"skill\": \"Data Engineering\"}\n]\nThe second JSON block MUST be an object with two keys:\n\n\"top10Skills\": a JSON array of the top 10 most in-demand skills (same format as above)\n\n\"keySkills\": a JSON array of the most essential skills (string list)\n\n{\n  \"top10Skills\": [\n    {\"skill\": \"Machine Learning\"},\n    {\"skill\": \"Deep Learning\"}\n  ],\n  \"keySkills\": [\"Machine Learning\", \"Data Engineering\", \"TensorFlow\"]\n}\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -144
+      ],
+      "id": "14e8fe8c-1831-4fe2-bcf4-8553a64fe487",
+      "name": "Message a model",
+      "alwaysOutputData": true,
+      "executeOnce": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5Q30FjlorBv6qI6L",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ Get raw model output text\nconst text = $input.first().json.content.parts[0].text;\n\n// ✅ Extract both JSON blocks from the model output\nconst jsonMatches = text.match(/```json([\\s\\S]*?)```/g);\nif (!jsonMatches || jsonMatches.length < 2) {\n  throw new Error(\"Could not find both JSON blocks in the model output.\");\n}\n\n// ✅ Parse them into JavaScript objects\nconst allSkills = JSON.parse(jsonMatches[0].replace(/```json|```/g, '').trim());\nconst topSkillsData = JSON.parse(jsonMatches[1].replace(/```json|```/g, '').trim());\n\n// ✅ Format all skills message (📋 All skills)\nlet allSkillsMsg = \"📚 *All Skills Required in Today's Jobs*\\n\\n\";\nallSkills.forEach((s, i) => {\n  allSkillsMsg += `${i + 1}. ${s.skill}\\n`;\n});\n\n// ✅ Format top 10 skills message (🔥 Top skills)\nlet top10Msg = \"🔥 *Top 10 Most Demanded Skills Today*\\n\\n\";\ntopSkillsData.top10Skills.forEach((s, i) => {\n  top10Msg += `${i + 1}. ${s.skill}\\n`;\n});\n\ntop10Msg += \"\\n⭐ *Key Skills to Focus On:* \" + topSkillsData.keySkills.join(\", \");\n\n// ✅ Output both messages\nreturn [\n  {\n    json: {\n      all_skills_message: allSkillsMsg,\n      top_10_skills_message: top10Msg\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -80
+      ],
+      "id": "d181ebd0-ef20-4082-9c8e-ae537288bacb",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ZlLxPpc5ch_zdfZAMcUFuY0S1VjcO0GfYXAF10AJnbM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Job skills ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZlLxPpc5ch_zdfZAMcUFuY0S1VjcO0GfYXAF10AJnbM/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "keySkills"
+          ],
+          "schema": [
+            {
+              "id": "keySkills",
+              "displayName": "keySkills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1392,
+        -240
+      ],
+      "id": "a09659e7-cb18-44a9-8b9f-01190c763c0a",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleApi": {
+          "id": "vUvmJa9MBzJbQ3Bu",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1️⃣ Get the text from the first input item\nconst items = $input.all();\nconst firstItem = items[0];\n\n// Access the text field safely\nconst rawText = firstItem.json.content?.parts?.[0]?.text;\n\nif (!rawText) {\n  throw new Error(\"No text found in input.\");\n}\n\n// 2️⃣ Extract all JSON blocks in the text\nconst regex = /```json([\\s\\S]*?)```/g;\nconst matches = [...rawText.matchAll(regex)];\n\nif (!matches || matches.length < 2) {\n  throw new Error(`Expected at least 2 JSON blocks but found ${matches.length}`);\n}\n\n// 3️⃣ Parse the second JSON block\nconst secondJsonText = matches[1][1].trim();\nconst parsed = JSON.parse(secondJsonText);\n\n// 4️⃣ Extract keySkills\nconst keySkills = parsed.keySkills;\n\n// 5️⃣ Create output object with date and skills\nconst output = {\n  date: new Date().toISOString() // current date in ISO format\n};\n\nkeySkills.forEach((skill, index) => {\n  output[`skill_${index + 1}`] = skill;\n});\n\n// 6️⃣ Return as a single row JSON\nreturn [\n  {\n    json: output\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -240
+      ],
+      "id": "ade3b69a-6d04-470f-852d-bcde89c982d0",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the first input item\nconst firstItem = $input.item.json;\n\n// Check if the result exists and is an array\nif (!firstItem.result || !Array.isArray(firstItem.result)) {\n  return [];\n}\n\n// Map each object in the result array to a separate n8n item\nreturn firstItem.result.map(job => {\n  return {\n    json: job.json // this keeps the same structure as each job\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        256
+      ],
+      "id": "25362d60-127d-4d92-ad03-ae12d9b79163",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ZlLxPpc5ch_zdfZAMcUFuY0S1VjcO0GfYXAF10AJnbM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1113611939,
+          "mode": "list",
+          "cachedResultName": "Job application",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZlLxPpc5ch_zdfZAMcUFuY0S1VjcO0GfYXAF10AJnbM/edit#gid=1113611939"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "title ",
+              "displayName": "title ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "employment type",
+              "displayName": "employment type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "level",
+              "displayName": "level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "posted_date",
+              "displayName": "posted_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "apply_before",
+              "displayName": "apply_before",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "employment_type",
+              "displayName": "employment_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "required_skills",
+              "displayName": "required_skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        176
+      ],
+      "id": "2a67e959-88b6-488d-b22a-32726b32e9f8",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleApi": {
+          "id": "vUvmJa9MBzJbQ3Bu",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8396483290:AAHOOEaCylSj3ajWnNycO7DFaQS0A5JuLpA/sendMessage?chat_id=5048257269",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.all_skills_message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        -64
+      ],
+      "id": "4d00c6b0-e73f-4821-b616-1c5e727f2ec0",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8396483290:AAHOOEaCylSj3ajWnNycO7DFaQS0A5JuLpA/sendMessage?chat_id=5048257269",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.top_10_skills_message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        80
+      ],
+      "id": "b5d0d638-e616-42b2-9680-656de698c113",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot8396483290:AAHOOEaCylSj3ajWnNycO7DFaQS0A5JuLpA/sendMessage?chat_id=5048257269",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.whatsapp_message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        368
+      ],
+      "id": "941aa071-05f5-4609-85b5-fe3e83ce2485",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all input items\nconst items = $input.all();\n\n// Build one combined message string\nconst message = items.map((item, index) => {\n  const data = item.json;\n\n  const title = data.title || \"N/A\";\n  const company = data.company || \"N/A\";\n  const location = data.location || \"N/A\";\n  const applyBefore = data.apply_before || \"N/A\";\n  const url = data.url || \"N/A\";\n\n  return `🔎 *${index + 1}. ${title}*\\n🏢 Company: ${company}\\n📍 Location: ${location}\\n📅 Apply Before: ${applyBefore}\\n🔗 ${url}`;\n}).join(\"\\n\\n────────────────────\\n\\n\");\n\n// Return single item with all jobs in one message\nreturn [\n  {\n    json: {\n      whatsapp_message: message\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        368
+      ],
+      "id": "b51a01e7-3405-4059-9fbe-07ea3401d31b",
+      "name": "Code in JavaScript4"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bb32cd98-298f-444c-9416-718fa8bdaad8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "72594a936f2cb6df6886a27ff764895fd8e012efa0a98d5254096a6f04a9b3e9"
+  },
+  "id": "nOsC7qFVdOTQjSOo",
+  "tags": []
+}
